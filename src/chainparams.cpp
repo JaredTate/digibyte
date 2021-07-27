@@ -224,11 +224,11 @@ public:
         vSeeds.emplace_back("dnsseed.bluematt.me"); // Matt Corallo, only supports x9
         vSeeds.emplace_back("dnsseed.digibyte.dashjr.org"); // Luke Dashjr
         vSeeds.emplace_back("seed.digibyteservers.io"); // ChillingSilence
-	vSeeds.emplace_back("seed.digibyte.io"); // JaredTate
-	vSeeds.emplace_back("seed.digibyteblockchain.com"); // JS555
-	vSeeds.emplace_back("dnsseed.esotericizm.site"); // DigiContributor
-	vSeeds.emplace_back("seed.digibytefoundation.org"); // DigiByteFoundation
-	vSeeds.emplace_back("seed.digibyte.host"); // SashaD
+        vSeeds.emplace_back("seed.digibyte.io"); // JaredTate
+        vSeeds.emplace_back("seed.digibyteblockchain.com"); // JS555
+        vSeeds.emplace_back("dnsseed.esotericizm.site"); // DigiContributor
+        vSeeds.emplace_back("seed.digibytefoundation.org"); // DigiByteFoundation
+        vSeeds.emplace_back("seed.digibyte.host"); // SashaD
 
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,30);
@@ -719,7 +719,7 @@ public:
         base58Prefixes[SECRET_KEY] =     std::vector<unsigned char>(1,254);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
-
+    }
     /**
      * Allows modifying the Version Bits regtest parameters.
      */

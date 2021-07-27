@@ -253,11 +253,6 @@ bool CheckSequenceLocks(CBlockIndex* tip,
                         LockPoints* lp,
                         bool useExistingLockPoints)
 {
-    //FIXDANDELION
-    //AssertLockHeld(cs_main);
-    // We could be calling this with only the stempool lock held, but mempool lock is required.
-//    LOCK(mempool.cs);
-
     assert(tip != nullptr);
 
     CBlockIndex index;
@@ -359,6 +354,7 @@ void CChainState::MaybeUpdateMempoolForReorg(
 
     AssertLockHeld(cs_main);
     AssertLockHeld(m_mempool->cs);
+    AssertLockHeld(m_stempool->cs);
     std::vector<uint256> vHashUpdate;
     // disconnectpool's insertion_order index sorts the entries from
     // oldest to newest, but the oldest entry will be the last tx from the
@@ -369,11 +365,8 @@ void CChainState::MaybeUpdateMempoolForReorg(
     auto it = disconnectpool.queuedTx.get<insertion_order>().rbegin();
     while (it != disconnectpool.queuedTx.get<insertion_order>().rend()) {
         // ignore validation errors in resurrected transactions
-
-//FIXDANDLEION
-/*
-        const MempoolAcceptResult result = AcceptToMemoryPool(*this, m_mempool, *it, true );
-        const MempoolAcceptResult dresult = AcceptToMemoryPool(*this, m_stempool, *it, true ); // dandelion
+        const MempoolAcceptResult result = AcceptToMemoryPool(*this, *m_mempool, *it, true );
+        const MempoolAcceptResult dresult = AcceptToMemoryPool(*this, *m_stempool, *it, true ); // dandelion
 
         if (!fAddToMempool || (*it)->IsCoinBase() ||
             result.m_result_type != MempoolAcceptResult::ResultType::INVALID ||
@@ -385,25 +378,13 @@ void CChainState::MaybeUpdateMempoolForReorg(
             // Changes to mempool should also be made to Dandelion stempool
             m_stempool->removeRecursive(**it, MemPoolRemovalReason::REORG);
 
-        } else if (m_mempool->exists((*it)->GetHash()) || m_stempool->exists((*it)->GetHash())) {
+        } else if (m_mempool->exists((*it)->GetHash()) || m_stempool->exists((*it)->GetHash())) {
             vHashUpdate.push_back((*it)->GetHash());
         }
 
         ++it;
     }
-    */
-           if (!fAddToMempool || (*it)->IsCoinBase() ||
-            AcceptToMemoryPool(
-                *this, *m_mempool, *it, true /* bypass_limits */).m_result_type !=
-                    MempoolAcceptResult::ResultType::VALID) {
-            // If the transaction doesn't make it in to the mempool, remove any
-            // transactions that depend on it (which would now be orphans).
-            m_mempool->removeRecursive(**it, MemPoolRemovalReason::REORG);
-        } else if (m_mempool->exists((*it)->GetHash())) {
-            vHashUpdate.push_back((*it)->GetHash());
-        }
-        ++it;
-    }
+
     disconnectpool.queuedTx.clear();
     // AcceptToMemoryPool/addUnchecked all assume that new mempool entries have
     // no in-mempool children, which is generally not true when adding
@@ -411,15 +392,11 @@ void CChainState::MaybeUpdateMempoolForReorg(
     // UpdateTransactionsFromBlock finds descendants of any transactions in
     // the disconnectpool that were added back and cleans up the mempool state.
     m_mempool->UpdateTransactionsFromBlock(vHashUpdate);
- 
- //FIXDANDELION
- //   m_stempool->UpdateTransactionsFromBlock(vHashUpdate);
+    m_stempool->UpdateTransactionsFromBlock(vHashUpdate);
 
     // We also need to remove any now-immature transactions
-    m_mempool->removeForReorg(*this, STANDARD_LOCKTIME_VERIFY_FLAGS);
-  
-//FIXDANDELION
- //   m_stempool->removeForReorg(*this, STANDARD_LOCKTIME_VERIFY_FLAGS);
+    m_mempool->removeForReorg(*this, STANDARD_LOCKTIME_VERIFY_FLAGS);  
+    m_stempool->removeForReorg(*this, STANDARD_LOCKTIME_VERIFY_FLAGS);
 
     // Re-limit mempool size, in case we added any transactions
     LimitMempoolSize(
@@ -428,14 +405,11 @@ void CChainState::MaybeUpdateMempoolForReorg(
         gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000,
         std::chrono::hours{gArgs.GetArg("-mempoolexpiry", DEFAULT_MEMPOOL_EXPIRY)});
 
-//FIXDANDELION
-/*
     LimitMempoolSize(
         *m_stempool,
         this->CoinsTip(),
         gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000,
         std::chrono::hours{gArgs.GetArg("-mempoolexpiry", DEFAULT_MEMPOOL_EXPIRY)});  
-*/  
 }
 
 /**
@@ -2381,18 +2355,17 @@ static void AppendWarning(bilingual_str& res, const bilingual_str& warn)
     res += warn;
 }
 
-void CChainState::UpdateTip(const CBlockIndex* pindexNew, const CChainParams& chainParams)
+void CChainState::UpdateTip(const CBlockIndex* pindexNew)
 {
     // New best block
     if (m_mempool) {
         m_mempool->AddTransactionsUpdated(1);
     }
 
-//FIXDANDELION    
     // Changes to mempool should also be made to Dandelion stempool
-    //if (stempool) {
-     //   stempool->AddTransactionsUpdated(1);
-    //}
+    if (m_stempool) {
+        m_stempool->AddTransactionsUpdated(1);
+    }
 
     {
         LOCK(g_best_block_mutex);
@@ -2423,7 +2396,7 @@ void CChainState::UpdateTip(const CBlockIndex* pindexNew, const CChainParams& ch
         for (int i = 0; i < 100 && pindex != nullptr; i++)
         {
             int nAlgo = pindex->GetAlgo();
-            int32_t nExpectedVersion = ComputeBlockVersion(pindex->pprev, chainParams.GetConsensus(), nAlgo);
+            int32_t nExpectedVersion = ComputeBlockVersion(pindex->pprev, m_params.GetConsensus(), nAlgo);
             if (pindex->nVersion > VERSIONBITS_LAST_OLD_BLOCK_VERSION && (pindex->nVersion & ~nExpectedVersion) != 0)
             {
                 ++nUpgraded;
@@ -2437,12 +2410,13 @@ void CChainState::UpdateTip(const CBlockIndex* pindexNew, const CChainParams& ch
         }
         if (nUpgraded > 0 && !fAllAsicBoost)
         {
-            AppendWarning(warningMessages, strprintf(_("%d of last 100 blocks have unexpected version"), nUpgraded));
+            const bilingual_str warning = strprintf(_("%d of last 100 blocks have unexpected version"), nUpgraded);
+            AppendWarning(warning_messages, warning);
         }
 
         if (nUpgraded > 100/2)
         {
-            std::string strWarning = _("Warning: Unknown block versions being mined! It's possible unknown rules are in effect");
+            const bilingual_str strWarning = _("Warning: Unknown block versions being mined! It's possible unknown rules are in effect");
             // notify GetWarnings(), called by Qt and the JSON-RPC code to warn the user:
             DoWarning(strWarning);
         }
@@ -2471,6 +2445,7 @@ bool CChainState::DisconnectTip(BlockValidationState& state, DisconnectedBlockTr
 {
     AssertLockHeld(cs_main);
     if (m_mempool) AssertLockHeld(m_mempool->cs);
+    if (m_stempool) AssertLockHeld(m_stempool->cs);
 
     CBlockIndex *pindexDelete = m_chain.Tip();
     assert(pindexDelete);
@@ -2506,7 +2481,7 @@ bool CChainState::DisconnectTip(BlockValidationState& state, DisconnectedBlockTr
             auto it = disconnectpool->queuedTx.get<insertion_order>().begin();
             m_mempool->removeRecursive(**it, MemPoolRemovalReason::REORG);
             // Changes to mempool should also be made to Dandelion stempool
-            stempool.removeRecursive(**it, MemPoolRemovalReason::REORG);
+            m_stempool->removeRecursive(**it, MemPoolRemovalReason::REORG);
             disconnectpool->removeEntry(it);
         }
     }
@@ -2576,6 +2551,7 @@ bool CChainState::ConnectTip(BlockValidationState& state, CBlockIndex* pindexNew
 {
     AssertLockHeld(cs_main);
     if (m_mempool) AssertLockHeld(m_mempool->cs);
+    if (m_stempool) AssertLockHeld(m_stempool->cs);
 
     assert(pindexNew->pprev == m_chain.Tip());
     // Read block from disk.
@@ -2728,6 +2704,7 @@ bool CChainState::ActivateBestChainStep(BlockValidationState& state, CBlockIndex
 {
     AssertLockHeld(cs_main);
     if (m_mempool) AssertLockHeld(m_mempool->cs);
+    if (m_stempool) AssertLockHeld(m_stempool->cs);
 
     const CBlockIndex* pindexOldTip = m_chain.Tip();
     const CBlockIndex* pindexFork = m_chain.FindFork(pindexMostWork);
@@ -2804,7 +2781,7 @@ bool CChainState::ActivateBestChainStep(BlockValidationState& state, CBlockIndex
     }
     if (m_mempool) m_mempool->check(*this);
     // Changes to mempool should also be made to Dandelion stempool
-    if (stempool) stempool->check(*this);
+    if (m_stempool) m_stempool->check(*this);
 
     CheckForkWarningConditions();
 
@@ -2877,7 +2854,7 @@ bool CChainState::ActivateBestChain(BlockValidationState& state, std::shared_ptr
         {
             LOCK(cs_main);
             // Lock transaction pool for at least as long as it takes for connectTrace to be consumed
-            LOCK(MempoolMutex());
+            LOCK2(MempoolMutex(), StempoolMutex());
             CBlockIndex* starting_tip = m_chain.Tip();
             bool blocks_connected = false;
             do {
@@ -3029,7 +3006,7 @@ bool CChainState::InvalidateBlock(BlockValidationState& state, CBlockIndex* pind
         LOCK(cs_main);
         // Lock for as long as disconnectpool is in scope to make sure MaybeUpdateMempoolForReorg is
         // called after DisconnectTip without unlocking in between
-        LOCK(MempoolMutex());
+        LOCK2(MempoolMutex(), StempoolMutex());
         if (!m_chain.Contains(pindex)) break;
         pindex_was_in_chain = true;
         CBlockIndex *invalid_walk_tip = m_chain.Tip();
@@ -3397,11 +3374,12 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
         return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "bad-diffbits", "incorrect proof of work");
 
     // Check for non-standard SCRYPT version.
-    if (VersionBitsState(pindexPrev, consensusParams, Consensus::DEPLOYMENT_RESERVEALGO, versionbitscache) == ThresholdState::ACTIVE &&
+    if (
+        DeploymentActiveAfter(pindexPrev, consensusParams, Consensus::DEPLOYMENT_RESERVEALGO) &&
         block.GetAlgo() == ALGO_SCRYPT &&
-        (block.nVersion & BLOCK_VERSION_ALGO) != BLOCK_VERSION_SCRYPT)
-    {
-        return state.Invalid(false, REJECT_INVALID, "invalid-algo", "invalid algo id");
+        (block.nVersion & BLOCK_VERSION_ALGO) != BLOCK_VERSION_SCRYPT
+    ) {
+        return state.Invalid(BlockValidationResult::BLOCK_INVALID_ALGO, "invalid-algo", "invalid algo id");
     }
 
     // Check against checkpoints
@@ -3425,7 +3403,7 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
         return state.Invalid(BlockValidationResult::BLOCK_TIME_FUTURE, "time-too-new", "block timestamp too far in the future");
 
     // Reject blocks with outdated version
-    if(block.nVersion < VERSIONBITS_TOP_BITS && IsWitnessEnabled(pindexPrev, consensusParams))
+    if (block.nVersion < VERSIONBITS_TOP_BITS && DeploymentActiveAfter(pindexPrev, consensusParams, Consensus::DEPLOYMENT_SEGWIT))
     {
         return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, strprintf("bad-version(0x%08x)", block.nVersion),
                              strprintf("rejected nVersion=0x%08x block", block.nVersion));
@@ -4066,7 +4044,7 @@ void CChainState::LoadMempool(const ArgsManager& args)
     if (!m_mempool) return;
     if (args.GetArg("-persistmempool", DEFAULT_PERSIST_MEMPOOL)) {
         // We will intentionally not save the stempool for dandelion
-        ::LoadMempool(*m_mempool, "mempool.dat", *this);
+        ::LoadMempool(*m_mempool, *this);
     }
     m_mempool->SetIsLoaded(!ShutdownRequested());
 }
@@ -4333,7 +4311,7 @@ void CChainState::UnloadBlockIndex() {
 // May NOT be used after any connections are up as much
 // of the peer-processing logic assumes a consistent
 // block index state
-void UnloadBlockIndex(CTxMemPool* mempool, ChainstateManager& chainman)
+void UnloadBlockIndex(CTxMemPool* mempool, CTxMemPool* stempool, ChainstateManager& chainman)
 {
     LOCK(cs_main);
     chainman.Unload();
@@ -4342,7 +4320,7 @@ void UnloadBlockIndex(CTxMemPool* mempool, ChainstateManager& chainman)
 
     if (mempool) mempool->clear();
     // Changes to mempool should also be made to Dandelion stempool
-    stempool.clear();
+    if (stempool) stempool->clear();
 
     vinfoBlockFile.clear();
     nLastBlockFile = 0;
