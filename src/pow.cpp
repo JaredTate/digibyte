@@ -12,7 +12,7 @@
 #include <uint256.h>
 #include <chainparams.h>
 
-#include "util.h" //just for logs
+#include "logging.h"
 
 inline unsigned int PowLimit(const Consensus::Params& params)
 {
