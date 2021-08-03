@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2019 The Bitcoin Core developers
-// Copyright (c) 2014-2019 The DigiByte Core developers
+// Copyright (c) 2009-2020 The Bitcoin Core developers
+// Copyright (c) 2014-2020 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -11,6 +11,70 @@
 #include <serialize.h>
 #include <uint256.h>
 #include <util.h>
+
+namespace Consensus { struct Params; }
+
+enum { 
+    ALGO_UNKNOWN = -1,
+    ALGO_SHA256D  = 0,
+    ALGO_SCRYPT   = 1,
+    ALGO_GROESTL  = 2,
+    ALGO_SKEIN    = 3,
+    ALGO_QUBIT    = 4,
+    //ALGO_EQUIHASH = 5,
+    //ALGO_ETHASH   = 6,
+    ALGO_ODO      = 7,
+    NUM_ALGOS_IMPL };
+
+const int NUM_ALGOS = 5;
+
+enum {
+    // primary version
+    BLOCK_VERSION_DEFAULT        = 2, 
+
+    // algo
+    BLOCK_VERSION_ALGO           = (15 << 8),
+    BLOCK_VERSION_SCRYPT         = (0 << 8),
+    BLOCK_VERSION_SHA256D        = (2 << 8),
+    BLOCK_VERSION_GROESTL        = (4 << 8),
+    BLOCK_VERSION_SKEIN          = (6 << 8),
+    BLOCK_VERSION_QUBIT          = (8 << 8),
+    //BLOCK_VERSION_EQUIHASH       = (10 << 8),
+    //BLOCK_VERSION_ETHASH         = (12 << 8),
+    BLOCK_VERSION_ODO            = (14 << 8),
+};
+
+std::string GetAlgoName(int Algo);
+
+int GetAlgoByName(std::string strAlgo, int fallback);
+
+inline int GetVersionForAlgo(int algo)
+{
+    switch(algo)
+    {
+        case ALGO_SHA256D:
+            return BLOCK_VERSION_SHA256D;
+        case ALGO_SCRYPT:
+            return BLOCK_VERSION_SCRYPT;
+        case ALGO_GROESTL:
+            return BLOCK_VERSION_GROESTL;
+        case ALGO_SKEIN:
+            return BLOCK_VERSION_SKEIN;
+        case ALGO_QUBIT:
+            return BLOCK_VERSION_QUBIT;
+        //case ALGO_EQUIHASH:
+            //return BLOCK_VERSION_EQUIHASH;
+        //case ALGO_ETHASH:
+            //return BLOCK_VERSION_ETHASH;
+        case ALGO_ODO:
+            return BLOCK_VERSION_ODO;
+        default:
+            assert(false);
+            return 0;
+    }
+}
+
+uint32_t OdoKey(const Consensus::Params& params, uint32_t nTime);
 
 namespace Consensus { struct Params; }
 
@@ -99,17 +163,7 @@ public:
         SetNull();
     }
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(this->nVersion);
-        READWRITE(hashPrevBlock);
-        READWRITE(hashMerkleRoot);
-        READWRITE(nTime);
-        READWRITE(nBits);
-        READWRITE(nNonce);
-    }
+    SERIALIZE_METHODS(CBlockHeader, obj) { READWRITE(obj.nVersion, obj.hashPrevBlock, obj.hashMerkleRoot, obj.nTime, obj.nBits, obj.nNonce); }
 
     void SetNull()
     {
@@ -165,12 +219,10 @@ public:
         *(static_cast<CBlockHeader*>(this)) = header;
     }
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITEAS(CBlockHeader, *this);
-        READWRITE(vtx);
+    SERIALIZE_METHODS(CBlock, obj)
+    {
+        READWRITEAS(CBlockHeader, obj);
+        READWRITE(obj.vtx);
     }
 
     void SetNull()
@@ -207,14 +259,12 @@ struct CBlockLocator
 
     explicit CBlockLocator(const std::vector<uint256>& vHaveIn) : vHave(vHaveIn) {}
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
+    SERIALIZE_METHODS(CBlockLocator, obj)
+    {
         int nVersion = s.GetVersion();
         if (!(s.GetType() & SER_GETHASH))
             READWRITE(nVersion);
-        READWRITE(vHave);
+        READWRITE(obj.vHave);
     }
 
     void SetNull()
