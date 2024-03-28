@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) 2020 The DigiByte Core developers
+# Copyright (c) 2020-present The Bitcoin Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 export LC_ALL=C.UTF-8
 
-export CONTAINER_NAME=ci_native_multiprocess
-export DOCKER_NAME_TAG=ubuntu:20.04
-export PACKAGES="cmake python3 python3-pip llvm clang"
+export HOST=i686-pc-linux-gnu
+export CONTAINER_NAME=ci_i686_multiprocess
+export CI_IMAGE_NAME_TAG="docker.io/amd64/ubuntu:22.04"
+export PACKAGES="llvm clang g++-multilib"
 export DEP_OPTS="DEBUG=1 MULTIPROCESS=1"
 export GOAL="install"
-export DIGIBYTE_CONFIG="--enable-debug CC=clang CXX=clang++"  # Use clang to avoid OOM
-export TEST_RUNNER_ENV="DIGIBYTED=digibyte-node"
-export PIP_PACKAGES="lief"
+export TEST_RUNNER_EXTRA="--v2transport"
+export DIGIBYTE_CONFIG="--enable-debug CC='clang -m32' CXX='clang++ -m32' \
+CPPFLAGS='-DBOOST_MULTI_INDEX_ENABLE_SAFE_MODE'"
+export DIGIBYTED=digibyte-node  # Used in functional tests

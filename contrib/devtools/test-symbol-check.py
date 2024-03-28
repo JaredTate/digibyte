@@ -39,7 +39,7 @@ class TestSymbolChecks(unittest.TestCase):
         cc = determine_wellknown_cmd('CC', 'gcc')
 
         # there's no way to do this test for RISC-V at the moment; we build for
-        # RISC-V in a glibc 2.27 environment and we allow all symbols from 2.27.
+        # RISC-V in a glibc 2.27 envinonment and we allow all symbols from 2.27.
         if 'riscv' in get_machine(cc):
             self.skipTest("test not available for RISC-V")
 
@@ -60,7 +60,7 @@ class TestSymbolChecks(unittest.TestCase):
         ''')
 
         self.assertEqual(call_symbol_check(cc, source, executable, ['-lm']),
-                (1, executable + ': symbol nextup from unsupported version GLIBC_2.24\n' +
+                (1, executable + ': symbol nextup from unsupported version GLIBC_2.24(3)\n' +
                     executable + ': failed IMPORTED_SYMBOLS'))
 
         # -lutil is part of the libc6 package so a safe bet that it's installed
@@ -79,7 +79,7 @@ class TestSymbolChecks(unittest.TestCase):
         ''')
 
         self.assertEqual(call_symbol_check(cc, source, executable, ['-lutil']),
-                (1, executable + ': NEEDED library libutil.so.1 is not allowed\n' +                         
+                (1, executable + ': libutil.so.1 is not in ALLOWED_LIBRARIES!\n' +
                     executable + ': failed LIBRARY_DEPENDENCIES'))
 
         # finally, check a simple conforming binary
@@ -187,7 +187,7 @@ class TestSymbolChecks(unittest.TestCase):
         executable = 'test3.exe'
         with open(source, 'w', encoding="utf8") as f:
             f.write('''
-                #include <combaseapi.h>
+                #include <windows.h>
 
                 int main()
                 {

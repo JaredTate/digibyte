@@ -159,7 +159,7 @@ which case you can override the default list by setting the space-separated
 `HOSTS` environment variable:
 
 ```sh
-env HOSTS='x86_64-w64-mingw32 x86_64-apple-darwin18' ./contrib/guix/guix-build
+env HOSTS='x86_64-w64-mingw32 x86_64-apple-darwin' ./contrib/guix/guix-build
 ```
 
 See the [recognized environment variables][env-vars-list] section for more
