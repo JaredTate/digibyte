@@ -2,7 +2,7 @@ Description: Add disable opposites to the security-related flags
 Author: Stephen Kitt <skitt@debian.org>
 
 This patch adds "no-" variants to disable the various security flags:
-"disable-dynamicbase", "disable-nxcompat", "no-high-entropy-va", "disable-reloc-section".
+"disable-dynamicbase", "disable-nxcompat", "disable-high-entropy-va", "disable-reloc-section".
 
 --- a/ld/emultempl/pe.em
 +++ b/ld/emultempl/pe.em
@@ -111,7 +111,7 @@ This patch adds "no-" variants to disable the various security flags:
      {"enable-long-section-names", no_argument, NULL, OPTION_ENABLE_LONG_SECTION_NAMES},
      {"disable-long-section-names", no_argument, NULL, OPTION_DISABLE_LONG_SECTION_NAMES},
      {"high-entropy-va", no_argument, NULL, OPTION_HIGH_ENTROPY_VA},
-+    {"no-high-entropy-va", no_argument, NULL, OPTION_NO_HIGH_ENTROPY_VA},
++    {"disable-high-entropy-va", no_argument, NULL, OPTION_NO_HIGH_ENTROPY_VA},
      {"dynamicbase",no_argument, NULL, OPTION_DYNAMIC_BASE},
 +    {"disable-dynamicbase", no_argument, NULL, OPTION_NO_DYNAMIC_BASE},
      {"forceinteg", no_argument, NULL, OPTION_FORCE_INTEGRITY},
@@ -132,7 +132,7 @@ This patch adds "no-" variants to disable the various security flags:
                                         in object files\n"));
    fprintf (file, _("  --high-entropy-va                  Image is compatible with 64-bit address space\n\
                                         layout randomization (ASLR)\n"));
-+  fprintf (file, _("  --no-high-entropy-va               Image is not compatible with 64-bit ASLR\n"));
++  fprintf (file, _("  --disable-high-entropy-va               Image is not compatible with 64-bit ASLR\n"));
    fprintf (file, _("  --dynamicbase                      Image base address may be relocated using\n\
                                         address space layout randomization (ASLR)\n"));
 +  fprintf (file, _("  --disable-dynamicbase                   Image base address may not be relocated\n"));
