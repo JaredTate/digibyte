@@ -551,7 +551,7 @@ inspecting signatures in Mach-O binaries.")
                                            "glibc-2.24-elfm-loadaddr-dynamic-rewrite.patch"
                                            "glibc-2.24-no-build-time-cxx-header-run.patch"))))))
 
-(define-public glibc-2.27/bitcoin-patched
+(define-public glibc-2.27/digibyte-patched
   (package
     (inherit glibc-2.31)
     (version "2.27")
@@ -617,8 +617,8 @@ inspecting signatures in Mach-O binaries.")
                  osslsigncode))
           ((string-contains target "-linux-")
            (list (cond ((string-contains target "riscv64-")
-                        (make-bitcoin-cross-toolchain target
-                                                      #:base-libc glibc-2.27/bitcoin-patched
+                        (make-digibyte-cross-toolchain target
+                                                      #:base-libc glibc-2.27/digibyte-patched
                                                       #:base-kernel-headers linux-libre-headers-4.19))
                        (else
                         (make-digibyte-cross-toolchain target)))))
