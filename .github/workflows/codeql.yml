@@ -112,7 +112,7 @@ jobs:
 
           # Configure and Build
           ./autogen.sh
-          CONFIG_SITE=$PWD/depends/aarch64-apple-darwin24.2.0/share/config.site ./configure --with-bdb --with-sqlite --with-gui=yes --with-zmq
+          CONFIG_SITE=$PWD/depends/aarch64-apple-darwin24.2.0/share/config.site ./configure --with-bdb --with-sqlite --with-gui=no --with-zmq
           make -j2
 
       - name: Perform CodeQL Analysis
