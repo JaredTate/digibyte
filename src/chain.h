@@ -200,7 +200,12 @@ public:
 
     //! (memory only) Maximum nTime in the chain up to and including this block.
     unsigned int nTimeMax{0};
+
+    //! (memory only) Fast references to the last known block of each algo in its chain
     CBlockIndex *lastAlgoBlocks[NUM_ALGOS_IMPL];
+
+    //! (memory only) Store this block's algorithm so we don't reconstruct blockheader repeatedly
+    int nAlgo;
 
     CBlockIndex()
     {
@@ -213,9 +218,12 @@ public:
           nBits{block.nBits},
           nNonce{block.nNonce}
     {
-         for (unsigned i = 0; i < NUM_ALGOS_IMPL; i++)
-             lastAlgoBlocks[i] = nullptr;
-         lastAlgoBlocks[GetAlgo()] = this;        
+        for (unsigned i = 0; i < NUM_ALGOS_IMPL; i++) {
+            lastAlgoBlocks[i] = nullptr;
+        }
+        // The constructor sets only this block's algo pointer to 'this'
+        // If you prefer: nAlgo = block.GetAlgo();
+        lastAlgoBlocks[GetAlgo()] = this;
     }
 
     FlatFilePos GetBlockPos() const {
@@ -240,8 +248,9 @@ public:
     {
         CBlockHeader block;
         block.nVersion       = nVersion;
-        if (pprev)
+        if (pprev) {
             block.hashPrevBlock = pprev->GetBlockHash();
+        }
         block.hashMerkleRoot = hashMerkleRoot;
         block.nTime          = nTime;
         block.nBits          = nBits;
@@ -262,6 +271,10 @@ public:
 
     int GetAlgo() const
     {
+        // If you want to use the new nAlgo field, you can do:
+        //   return nAlgo;
+        // but you must set nAlgo somewhere (e.g. in AddToBlockIndex).
+        // Or keep the old logic:
         CBlockHeader block = GetBlockHeader();
         return block.GetAlgo();
     }
@@ -427,8 +440,9 @@ public:
 
     /** Returns the index entry at a particular height in this chain, or nullptr if no such height exists. */
     CBlockIndex *operator[](int nHeight) const {
-        if (nHeight < 0 || nHeight >= (int)vChain.size())
+        if (nHeight < 0 || nHeight >= (int)vChain.size()) {
             return nullptr;
+        }
         return vChain[nHeight];
     }
 
@@ -439,10 +453,11 @@ public:
 
     /** Find the successor of a block in this chain, or nullptr if the given index is not found or is the tip. */
     CBlockIndex *Next(const CBlockIndex *pindex) const {
-        if (Contains(pindex))
+        if (Contains(pindex)) {
             return (*this)[pindex->nHeight + 1];
-        else
+        } else {
             return nullptr;
+        }
     }
 
     /** Return the maximal height in the chain. Is equal to chain.Tip() ? chain.Tip()->nHeight : -1. */

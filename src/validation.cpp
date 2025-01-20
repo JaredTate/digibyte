@@ -3080,55 +3080,63 @@ CBlockIndex* BlockManager::AddToBlockIndex(const CBlockHeader& block)
     // Check for duplicate
     uint256 hash = block.GetHash();
     BlockMap::iterator it = m_block_index.find(hash);
-    if (it != m_block_index.end())
+    if (it != m_block_index.end()) {
+        // Block header is already known
         return it->second;
+    }
 
     // Construct new block index object
     CBlockIndex* pindexNew = new CBlockIndex(block);
+
     // We assign the sequence id to blocks only when the full data is available,
     // to avoid miners withholding blocks but broadcasting headers, to get a
     // competitive advantage.
     pindexNew->nSequenceId = 0;
-    BlockMap::iterator mi = m_block_index.insert(std::make_pair(hash, pindexNew)).first;
+
+    // Add to m_block_index map
+    auto mi = m_block_index.insert(std::make_pair(hash, pindexNew)).first;
     pindexNew->phashBlock = &((*mi).first);
+
+    // If we have a previous block, link to it
     BlockMap::iterator miPrev = m_block_index.find(block.hashPrevBlock);
-    if (miPrev != m_block_index.end())
-    {
+    if (miPrev != m_block_index.end()) {
         pindexNew->pprev = (*miPrev).second;
         pindexNew->nHeight = pindexNew->pprev->nHeight + 1;
         pindexNew->BuildSkip();
-    }
 
-    // Use memcpy to copy the entire array at once.
-    if (pindexNew->pprev) {
-        // Copy parent's lastAlgoBlocks
+        // -------------------------------------------
+        // COPY parent's lastAlgoBlocks into the new index:
         std::memcpy(
             pindexNew->lastAlgoBlocks,
             pindexNew->pprev->lastAlgoBlocks,
             sizeof(pindexNew->lastAlgoBlocks)
         );
 
-        // Overwrite the slot for the new block's own algo
-        // (the constructor sets just one entry, but we also
-        // want the rest of them to reference parent's data)
+        // Overwrite the slot for this block's own algo
         pindexNew->lastAlgoBlocks[pindexNew->GetAlgo()] = pindexNew;
+        // -------------------------------------------
+
     } else {
-        // For the genesis block, or if no parent:
-        // Already set to nullptr in the constructor for all algos,
-        // plus we set the entry for pindexNew->GetAlgo():
-        // (the existing constructor call does something like:
-        //   for (...) lastAlgoBlocks[i] = nullptr;
-        //   lastAlgoBlocks[GetAlgo()] = this;)
+        // For the genesis block or if no parent:
+        // already set to nullptr in the constructor for all algos,
+        // plus the constructor sets lastAlgoBlocks[GetAlgo()] = this
     }
 
-    pindexNew->nTimeMax = (pindexNew->pprev ? std::max(pindexNew->pprev->nTimeMax, pindexNew->nTime) : pindexNew->nTime);
-    pindexNew->nChainWork = (pindexNew->pprev ? pindexNew->pprev->nChainWork : 0) + GetBlockProof(*pindexNew);
+    // Fill in other fields
+    pindexNew->nTimeMax = (pindexNew->pprev ? 
+                           std::max(pindexNew->pprev->nTimeMax, pindexNew->nTime) 
+                           : pindexNew->nTime);
+    pindexNew->nChainWork = (pindexNew->pprev ? 
+                             pindexNew->pprev->nChainWork 
+                             : 0) + GetBlockProof(*pindexNew);
     pindexNew->RaiseValidity(BLOCK_VALID_TREE);
-    if (pindexBestHeader == nullptr || pindexBestHeader->nChainWork < pindexNew->nChainWork)
+
+    // Update best header pointer
+    if (pindexBestHeader == nullptr || pindexBestHeader->nChainWork < pindexNew->nChainWork) {
         pindexBestHeader = pindexNew;
+    }
 
     setDirtyBlockIndex.insert(pindexNew);
-
     return pindexNew;
 }
 

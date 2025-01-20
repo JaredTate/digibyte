@@ -349,22 +349,30 @@ const CBlockIndex* GetLastBlockIndexForAlgo(const CBlockIndex* pindex, const Con
 
 const CBlockIndex* GetLastBlockIndexForAlgoFast(const CBlockIndex* pindex, const Consensus::Params& params, int algo)
 {
-    for (; pindex; pindex = pindex->lastAlgoBlocks[algo])
-    {
-        if (pindex->GetAlgo() != algo)
-            continue;
+    // If the pointer array is never set, fallback to the slower function
+    if (!pindex || !pindex->lastAlgoBlocks[algo]) {
+        return GetLastBlockIndexForAlgo(pindex, params, algo);
+    }
+
+    while (pindex) {
+        // If for some reason the block's algo doesn't match, fallback
+        if (pindex->GetAlgo() != algo) {
+            return GetLastBlockIndexForAlgo(pindex, params, algo);
+        }
+        // If testnet min-difficulty logic triggers, step back
         if (params.fPowAllowMinDifficultyBlocks &&
             pindex->pprev &&
-            pindex->nTime > pindex->pprev->nTime + params.nTargetSpacing*2)
+            pindex->nTime > pindex->pprev->nTime + params.nTargetSpacing * 2)
         {
             pindex = pindex->pprev;
             continue;
         }
+        // Found the correct last block for this algo
         return pindex;
     }
-
     return nullptr;
 }
+
 
 uint256 GetPoWAlgoHash(const CBlockHeader& block)
 {
